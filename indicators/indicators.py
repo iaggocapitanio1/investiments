@@ -1,9 +1,8 @@
 import yfinance as yf
 
-import yfinance as yf
 
 
-def get_ebitda(ticker: str) -> float:
+def ebitda(ticker: str) -> float:
     """
     Calculate the EBITDA (Earnings Before Interest, Taxes, Depreciation, and Amortization)
     for a given company based on its ticker symbol.

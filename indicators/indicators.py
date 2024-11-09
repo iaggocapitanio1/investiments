@@ -1,6 +1,62 @@
 import yfinance as yf
 
 
+def get_financial_data(financials, field: str, default=0) -> float:
+    """
+    Helper function to retrieve financial data safely from the financials DataFrame.
+    If the field is not available, it returns the specified default value.
+    """
+    try:
+        return financials.loc[field].iloc[0] if field in financials.index else default
+    except (KeyError, IndexError):
+        return default
+
+
+def ebit(ticker: str) -> float:
+    """
+    Calculate the EBIT (Earnings Before Interest and Taxes) for a given company
+    based on its ticker symbol.
+
+    EBIT is a measure of a company's profitability that excludes interest and income tax expenses.
+    It represents the earnings generated from core business operations.
+
+    Formula:
+        EBIT = Operating Income
+        OR
+        EBIT = Revenue - Cost of Goods Sold (COGS) - Operating Expenses
+
+    Parameters:
+    -----------
+    ticker : str
+        The stock ticker symbol of the company (e.g., "PETR4.SA").
+
+    Returns:
+    --------
+    float
+        The calculated EBIT value for the company, or None if data is unavailable.
+
+    Example Usage:
+    --------------
+    >>> ticker = "PETR4.SA"
+    >>> ebit_value = ebit(ticker)
+    >>> print(f"EBIT for {ticker}: {ebit_value}")
+    """
+    stock = yf.Ticker(ticker)
+    financials = stock.financials
+
+    # Try to retrieve Operating Income first
+    operating_income = get_financial_data(financials, 'Operating Income', None)
+
+    if operating_income is not None:
+        return operating_income
+
+    # Calculate EBIT if Operating Income is not available
+    revenue = get_financial_data(financials, 'Total Revenue', None)
+    cogs = get_financial_data(financials, 'Cost of Revenue')
+    operating_expenses = get_financial_data(financials, 'Operating Expenses')
+
+    return revenue - cogs - operating_expenses if revenue is not None else None
+
 
 def ebitda(ticker: str) -> float:
     """
@@ -27,45 +83,189 @@ def ebitda(ticker: str) -> float:
     float
         The calculated EBITDA value for the company, or None if data is unavailable.
 
-    Purpose:
-    --------
-    - EBITDA is widely used to assess profitability based on core operations alone, as it excludes
-      non-operational expenses and accounting adjustments.
-    - This metric is especially useful when comparing companies in the same industry, as it normalizes
-      differences in capital structure and tax rates.
+    Example Usage:
+    --------------
+    >>> ticker = "PETR4.SA"
+    >>> ebitda = ebitda(ticker)
+    >>> print(f"EBITDA for {ticker}: {ebitda}")
+    """
+    stock = yf.Ticker(ticker)
+    financials = stock.financials
 
-    Considerations:
-    ---------------
-    - While EBITDA provides a useful view of operational efficiency, it does not account for actual cash
-      expenses related to debt (interest), taxes, or reinvestment in assets (depreciation and amortization).
-    - EBITDA should not be the sole metric used for financial evaluation, as it overlooks important
-      obligations and capital requirements.
+    revenue = get_financial_data(financials, 'Total Revenue', None)
+    cogs = get_financial_data(financials, 'Cost of Revenue')
+    operating_expenses = get_financial_data(financials, 'Operating Expenses')
+
+    return revenue - cogs - operating_expenses if revenue is not None else None
+
+
+def shareholders_equity(ticker: str) -> float:
+    """
+    Retrieve the Shareholders' Equity for a given company based on its ticker symbol.
+
+    Shareholders' Equity represents the net assets owned by shareholders after all
+    liabilities have been subtracted from the company's total assets. It is a measure
+    of a company's financial health and indicates how much of the company is financed
+    by its owners' investment.
+
+    Formula:
+        Shareholders' Equity = Total Assets - Total Liabilities
+
+    Parameters:
+    -----------
+    ticker : str
+        The stock ticker symbol of the company (e.g., "PETR4.SA").
+
+    Returns:
+    --------
+    float
+        The Shareholders' Equity value for the company, or None if data is unavailable.
 
     Example Usage:
     --------------
     >>> ticker = "PETR4.SA"
-    >>> ebitda = get_ebitda(ticker)
-    >>> print(f"EBITDA for {ticker}: {ebitda}")
+    >>> equity = shareholders_equity(ticker)
+    >>> print(f"Shareholders' Equity for {ticker}: {equity}")
     """
-
     stock = yf.Ticker(ticker)
-    financials = stock.financials
+    balance_sheet = stock.balance_sheet
 
+    return get_financial_data(balance_sheet, 'Total Stockholder Equity', None)
+
+
+def pl(ticker: str) -> float:
+    """
+    Retrieve the Price-to-Earnings (P/E) ratio, also known as PL, for a given company
+    based on its ticker symbol.
+
+    The P/E ratio is a valuation metric that compares a company's current share price
+    to its earnings per share (EPS). It provides a measure of how much investors are willing
+    to pay for each dollar of earnings, serving as an indicator of market expectations
+    for future growth.
+
+    Formula:
+        P/E Ratio = Market Price per Share / Earnings per Share (EPS)
+
+    Parameters:
+    -----------
+    ticker : str
+        The stock ticker symbol of the company (e.g., "PETR4.SA").
+
+    Returns:
+    --------
+    float
+        The P/E ratio (PL) for the company, or None if data is unavailable.
+
+    Example Usage:
+    --------------
+    >>> ticker = "PETR4.SA"
+    >>> pe_ratio = pl(ticker)
+    >>> print(f"P/E Ratio for {ticker}: {pe_ratio}")
+    """
+    stock = yf.Ticker(ticker)
     try:
-        revenue = financials.loc['Total Revenue'].iloc[0] if 'Total Revenue' in financials.index else None
-        cogs = financials.loc['Cost of Revenue'].iloc[0] if 'Cost of Revenue' in financials.index else 0
-        operating_expenses = financials.loc['Operating Expenses'].iloc[
-            0] if 'Operating Expenses' in financials.index else 0
-
-        if revenue is not None:
-            ebitda = revenue - cogs - operating_expenses
-            return ebitda
-        else:
-            print("Revenue data is not available.")
-            return None
-
-    except KeyError as e:
-        print(f"Error retrieving data: {e}")
+        return stock.info.get('trailingPE', None)
+    except Exception as e:
+        print(f"Error retrieving P/E ratio: {e}")
         return None
 
 
+def net_profit(ticker: str) -> float:
+    """
+    Calculate the Net Profit (LL) for a given company based on its ticker symbol.
+
+    Net profit, also known as net income, is the amount of earnings left after all expenses
+    have been subtracted from revenue. It represents the profitability of the company.
+
+    Formula:
+        Net Profit = Total Revenue - Total Expenses (including COGS, operating expenses, interest, and taxes)
+        OR
+        Net Profit = Net Income (if available directly)
+
+    Parameters:
+    -----------
+    ticker : str
+        The stock ticker symbol of the company (e.g., "PETR4.SA").
+
+    Returns:
+    --------
+    float
+        The Net Profit value for the company, or None if data is unavailable.
+
+    Example Usage:
+    --------------
+    >>> ticker = "PETR4.SA"
+    >>> net_profit_value = net_profit(ticker)
+    >>> print(f"Net Profit for {ticker}: {net_profit_value}")
+    """
+    stock = yf.Ticker(ticker)
+    financials = stock.financials
+
+    # Retrieve Net Income if available
+    net_income = get_financial_data(financials, 'Net Income', None)
+
+    if net_income is not None:
+        return net_income
+
+    # If Net Income is not directly available, calculate it manually if possible
+    revenue = get_financial_data(financials, 'Total Revenue', None)
+    total_expenses = get_financial_data(financials, 'Total Operating Expenses', 0) + \
+                     get_financial_data(financials, 'Interest Expense', 0) + \
+                     get_financial_data(financials, 'Income Tax Expense', 0)
+
+    return revenue - total_expenses if revenue is not None else None
+
+
+def roic(ticker: str, tax_rate: float = 0.15) -> float:
+    """
+    Calculate the Return on Invested Capital (ROIC) for a given company based on its ticker symbol.
+
+    ROIC is a measure of how efficiently a company generates profit from its invested capital.
+
+    Formula:
+        ROIC = NOPAT / Invested Capital
+
+        Where:
+        - NOPAT = EBIT * (1 - Tax Rate)
+        - Invested Capital = Total Assets - Non-Interest-Bearing Current Liabilities
+                            (or Shareholders' Equity + Interest-Bearing Debt)
+
+    Parameters:
+    -----------
+    ticker : str
+        The stock ticker symbol of the company (e.g., "PETR4.SA").
+    tax_rate : float
+        The corporate tax rate applied to calculate NOPAT. Default is 21%.
+
+    Returns:
+    --------
+    float
+        The calculated ROIC value for the company, or None if data is unavailable.
+
+    Example Usage:
+    --------------
+    >>> ticker = "PETR4.SA"
+    >>> roic_value = roic(ticker)
+    >>> print(f"ROIC for {ticker}: {roic_value}")
+    """
+    stock = yf.Ticker(ticker)
+    financials = stock.financials
+    balance_sheet = stock.balance_sheet
+
+    # Step 1: Calculate NOPAT
+    ebit_value = get_financial_data(financials, 'Operating Income', None)
+    if ebit_value is None:
+        print("EBIT data is not available.")
+        return None
+    nopat = ebit_value * (1 - tax_rate)
+
+    # Step 2: Calculate Invested Capital
+    total_assets = get_financial_data(balance_sheet, 'Total Assets', None)
+    non_interest_liabilities = get_financial_data(balance_sheet, 'Total Current Liabilities', 0) - \
+                               get_financial_data(balance_sheet, 'Current Debt', 0) - \
+                               get_financial_data(balance_sheet, 'Accounts Payable', 0)
+
+    invested_capital = total_assets - non_interest_liabilities if total_assets is not None else None
+
+    # Step 3: Calculate ROIC
+    return nopat / invested_capital if invested_capital else None
